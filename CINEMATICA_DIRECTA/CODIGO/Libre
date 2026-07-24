@@ -1,0 +1,164 @@
+%% TRAYECTORIA LIBRE - ESTRELLA DE 5 PUNTAS (RÁPIDA Y CENTRADA)
+clear; clc; close all;
+
+%% Parámetros del Robot
+L = 0.30;            % Distancia entre ruedas [m]
+r = 0.05;            % Radio de la rueda [m]
+ti = 0.01;           % Tiempo de integración [s]
+ts = 8.5;            % Tiempo total de simulación (~8.5 segundos)
+t = 0:ti:ts;         % Vector de tiempo
+
+x = zeros(size(t));
+y = zeros(size(t));
+theta = zeros(size(t));
+
+% Posición inicial calculada para centrar la estrella en (0,0)
+x(1) = -0.345;
+y(1) = -0.564;
+theta(1) = deg2rad(72); % Ángulo inicial apuntando hacia la primera punta
+
+%% Intervalos de la Tabla (5 rectas + 4 giros sobre el eje de 144°)
+% [ti tf thetaD thetaI]
+tabla = [
+ 0.00  1.20   20.0  20.0;  % Línea 1 (Avance)
+ 1.20  1.70  -15.0  15.0;  % Giro 1 (Rotación de 144° sobre su propio eje)
+ 1.70  2.90   20.0  20.0;  % Línea 2
+ 2.90  3.40  -15.0  15.0;  % Giro 2
+ 3.40  4.60   20.0  20.0;  % Línea 3
+ 4.60  5.10  -15.0  15.0;  % Giro 3
+ 5.10  6.30   20.0  20.0;  % Línea 4
+ 6.30  6.80  -15.0  15.0;  % Giro 4
+ 6.80  8.00   20.0  20.0;  % Línea 5 (Cierra la estrella)
+ 8.00  8.50    0.0   0.0;  % Detención final
+];
+
+%% Simulación Cinemática
+for k = 1:length(t)-1
+    td = 0;
+    tiw = 0;
+    for j = 1:size(tabla,1)
+        if t(k) >= tabla(j,1) && t(k) < tabla(j,2)
+            td = tabla(j,3);
+            tiw = tabla(j,4);
+            break
+        end
+    end
+    u = (r/2)*(td + tiw);
+    w = (r/L)*(td - tiw);
+    x(k+1) = x(k) + ti*u*cos(theta(k));
+    y(k+1) = y(k) + ti*u*sin(theta(k));
+    theta(k+1) = theta(k) + ti*w;
+end
+
+%%================== ANIMACIÓN CON FONDO NEGRO Y ESTÉTICA ESPACIAL ==================%
+figure('Color','k'); % Fondo negro estelar
+hold on;
+grid on;
+axis equal;
+
+xlabel('X [m]', 'Color', 'w');
+ylabel('Y [m]', 'Color', 'w');
+title('Trayectoria libre - Estrella de 5 Puntas', 'Color', 'w');
+
+% Ajustar la vista simétrica alrededor de (0,0)
+margen = 0.3;
+xmin = min(x)-margen;
+xmax = max(x)+margen;
+ymin = min(y)-margen;
+ymax = max(y)+margen;
+axis([xmin xmax ymin ymax]);
+
+% Configurar ejes y cuadrícula
+set(gca, 'Color', 'k', 'XColor', 'w', 'YColor', 'w');
+grid on;
+
+% Trayectoria del robot (Línea Neón Amarillo/Dorado para la estrella)
+trayectoria = plot(NaN,NaN,...
+    'Color',[1 0.85 0],...
+    'LineWidth',2.5);
+
+% Robot (Punto azul)
+robot = plot(NaN,NaN,...
+    'o',...
+    'MarkerFaceColor',[0 0.4 1],...
+    'MarkerEdgeColor','w',...
+    'MarkerSize',10,...
+    'LineWidth', 1.5);
+
+% Vector de orientación (Raya roja)
+vectorOrientacion = quiver(0, 0, 0, 0, 0, 'Color', [1 0 0], 'LineWidth', 2.5);
+
+% Punto inicial
+plot(x(1), y(1), 's', 'MarkerFaceColor', [0.8 0.3 0], 'MarkerEdgeColor', 'w', 'MarkerSize', 8, 'LineWidth', 1.5);
+
+% Punto final de la misión
+plot(x(end), y(end), 'p', 'MarkerFaceColor', [0 1 0], 'MarkerEdgeColor', 'w', 'MarkerSize', 12, 'LineWidth', 1.5);
+
+% Texto informativo en pantalla
+datos = text(...
+    xmin,...
+    ymax,...
+    '',...
+    'FontSize',11,...
+    'FontWeight','bold',...
+    'VerticalAlignment','top',...
+    'Color','w');
+
+%%================== VIDEO ==================%
+video = VideoWriter('Trayectoria_Estrella.mp4','MPEG-4');
+video.FrameRate = 30;
+open(video);
+
+%%================== BUCLE DE ANIMACIÓN Y CAPTURA ==================%
+for k = 1:length(t)
+    thetaD = 0;
+    thetaI = 0;
+    for j = 1:size(tabla,1)
+        if t(k) >= tabla(j,1) && t(k) < tabla(j,2)
+            thetaD = tabla(j,3);
+            thetaI = tabla(j,4);
+            break
+        end
+    end
+    u = (r/2)*(thetaD + thetaI);
+    w = (r/L)*(thetaD - thetaI);
+
+    % Actualizar trayectoria
+    set(trayectoria,...
+        'XData', x(1:k),...
+        'YData', y(1:k));
+
+    % Actualizar posición del robot
+    set(robot,...
+        'XData', x(k),...
+        'YData', y(k));
+
+    % Actualizar vector de orientación
+    set(vectorOrientacion,...
+        'XData', x(k),...
+        'YData', y(k),...
+        'UData', 0.18*cos(theta(k)),...
+        'VData', 0.18*sin(theta(k)));
+
+    % Actualizar datos en pantalla
+    texto = sprintf([...
+        'Misión Estrella\n',...
+        'Tiempo = %.2f s / %.2f s\n\n',...
+        '\\theta_D = %.2f rad/s\n',...
+        '\\theta_I = %.2f rad/s\n\n',...
+        'u = %.3f m/s\n',...
+        '\\omega = %.3f rad/s'],...
+        t(k), ts,...
+        thetaD,...
+        thetaI,...
+        u,...
+        w);
+
+    set(datos,'String',texto);
+    drawnow;
+
+    frame = getframe(gcf);
+    writeVideo(video,frame);
+end
+
+close(video);
