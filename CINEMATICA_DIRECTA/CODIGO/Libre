@@ -1,4 +1,4 @@
-%% TRAYECTORIA LIBRE - ESTRELLA DE 5 PUNTAS
+%% TRAYECTORIA LIBRE - ESTRELLA DE 5 PUNTAS 
 clear; clc; close all;
 
 %% Parámetros del Robot
