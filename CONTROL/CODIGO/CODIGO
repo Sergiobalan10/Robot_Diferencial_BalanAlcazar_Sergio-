@@ -1,416 +1,324 @@
-%% INICIALIZACION
+%% CINEMÁTICA INVERSA DE UN ROBOT DIFERENCIAL (VERSIÓN PERSONALIZADA CON EXPORTACIÓN)
 clear all;
-clc;
 close all;
+clc;
 
-%------------------------------------------------------------
-% CONTROL CINEMATICO DE UN ROBOT DIFERENCIAL
-% REGULACIÓN DE PUNTO (CON Y SIN SATURACIÓN)
-%------------------------------------------------------------
-
-%% TIEMPO DE SIMULACION
-
-ts = 25;                 % Tiempo total modificado a 25 s
-ti = 0.01;               % Tiempo de integración [s]
-t = 0:ti:ts;
-
-%% PARAMETROS DEL ROBOT
-
-L = 0.25;                % Distancia entre ruedas [m]
-r = 0.04;                % Radio de las ruedas [m]
-
-%% POSICION DESEADA
-
-xd = 4.5;
-yd = 3.5;
-
-%% GANANCIAS DEL CONTROLADOR Y LIMITES
-
-k_rho = 0.35;
-k_theta = 4.5;
-
-thetaDot_max = 18;       % Velocidad angular máxima [rad/s]
-tolerancia = 0.03;       % Distancia mínima a la meta
+%% CREAR CARPETA PARA GUARDAR RESULTADOS
+nombre_carpeta = 'Resultados_Cinematica_Inversa';
+if ~exist(nombre_carpeta, 'dir')
+    mkdir(nombre_carpeta);
+end
 
 %% CONDICIONES INICIALES
+x(1) = 0;
+y(1) = 0;
+theta(1) = pi/2;
 
-x0 = 0.5;
-y0 = 1.0;
-theta0 = pi/4;
+%% TIEMPO (ts ajustado a 21, ti y t con la misma estructura)
+ts = 21;
+ti = 0.01;
+t = 0:ti:ts;
 
-%% VARIABLES PARA SIMULACION SIN SATURACION
+%% PARÁMETROS DEL ROBOT (L = 0.30 m, r = 0.05 m)
+L = 0.30;
+r = 0.05;
 
-x_ns = zeros(1,length(t));
-y_ns = zeros(1,length(t));
-theta_ns = zeros(1,length(t));
+%% INICIALIZACIÓN DE VARIABLES
+u = zeros(size(t));
+w = zeros(size(t));
 
-x_ns(1) = x0;
-y_ns(1) = y0;
-theta_ns(1) = theta0;
+VD = zeros(size(t));
+VI = zeros(size(t));
 
-rho_ns = zeros(1,length(t));
-e_theta_ns = zeros(1,length(t));
+thetaDot_D = zeros(size(t));
+thetaDot_I = zeros(size(t));
 
-u_ns = zeros(1,length(t));
-w_ns = zeros(1,length(t));
+RPM_D = zeros(size(t));
+RPM_I = zeros(size(t));
 
-vD_ns = zeros(1,length(t));
-vI_ns = zeros(1,length(t));
+%% TRAYECTORIA CIRCULAR DESEADA
+R = 2.5;
+omega_c = 0.35;
 
-thetaDot_D_ns = zeros(1,length(t));
-thetaDot_I_ns = zeros(1,length(t));
+xd = R * cos(omega_c * t);
+yd = R * sin(omega_c * t);
 
-%% SIMULACION SIN SATURACION
+x_punto = -R * omega_c * sin(omega_c * t);
+y_punto =  R * omega_c * cos(omega_c * t);
 
+theta_punto = omega_c * ones(size(t));
+
+%% CINEMÁTICA INVERSA E INTEGRACIÓN EULER
 for k = 1:length(t)-1
 
-    ex = xd - x_ns(k);
-    ey = yd - y_ns(k);
+    u(k) = x_punto(k)*cos(theta_punto(k)) + y_punto(k)*sin(theta_punto(k));
+    w(k) = theta_punto(k);
 
-    rho_ns(k) = sqrt(ex^2 + ey^2);
-    theta_d = atan2(ey,ex);
+    VD(k) = u(k) + (L/2)*w(k);
+    VI(k) = u(k) - (L/2)*w(k);
 
-    e_theta_ns(k) = atan2(sin(theta_d-theta_ns(k)),...
-        cos(theta_d-theta_ns(k)));
+    thetaDot_D(k) = VD(k)/r;
+    thetaDot_I(k) = VI(k)/r;
 
-    u_ns(k) = k_rho*rho_ns(k);
-    w_ns(k) = k_theta*e_theta_ns(k);
+    RPM_D(k) = 60*thetaDot_D(k)/(2*pi);
+    RPM_I(k) = 60*thetaDot_I(k)/(2*pi);
 
-    if rho_ns(k) < tolerancia
-        u_ns(k) = 0;
-        w_ns(k) = 0;
-    end
-
-    vD_ns(k) = u_ns(k) + (L/2)*w_ns(k);
-    vI_ns(k) = u_ns(k) - (L/2)*w_ns(k);
-
-    thetaDot_D_ns(k) = vD_ns(k)/r;
-    thetaDot_I_ns(k) = vI_ns(k)/r;
-
-    x_ns(k+1) = x_ns(k) + ti*u_ns(k)*cos(theta_ns(k));
-    y_ns(k+1) = y_ns(k) + ti*u_ns(k)*sin(theta_ns(k));
-    theta_ns(k+1) = theta_ns(k) + ti*w_ns(k);
+    % Integración por Euler
+    x(k+1) = x(k) + ti*x_punto(k);
+    y(k+1) = y(k) + ti*y_punto(k);
+    theta(k+1) = theta(k) + ti*theta_punto(k);
 
 end
 
-%% COMPLETAR EL ULTIMO VALOR
+% Asignación de último valor para evitar diferencias de dimensiones
+u(end) = u(end-1);
+w(end) = w(end-1);
 
-rho_ns(end) = rho_ns(end-1);
-e_theta_ns(end) = e_theta_ns(end-1);
-u_ns(end) = u_ns(end-1);
-w_ns(end) = w_ns(end-1);
-vD_ns(end) = vD_ns(end-1);
-vI_ns(end) = vI_ns(end-1);
-thetaDot_D_ns(end) = thetaDot_D_ns(end-1);
-thetaDot_I_ns(end) = thetaDot_I_ns(end-1);
+VD(end) = VD(end-1);
+VI(end) = VI(end-1);
 
-%% VARIABLES PARA SIMULACION CON SATURACION
-
-x_sat = zeros(1,length(t));
-y_sat = zeros(1,length(t));
-theta_sat = zeros(1,length(t));
-
-x_sat(1) = x0;
-y_sat(1) = y0;
-theta_sat(1) = theta0;
-
-rho_sat = zeros(1,length(t));
-e_theta_sat = zeros(1,length(t));
-
-u_sat = zeros(1,length(t));
-w_sat = zeros(1,length(t));
-
-u_real = zeros(1,length(t));
-w_real = zeros(1,length(t));
-
-vD_sat = zeros(1,length(t));
-vI_sat = zeros(1,length(t));
-
-thetaDot_D = zeros(1,length(t));
-thetaDot_I = zeros(1,length(t));
-
-thetaDot_D_sat = zeros(1,length(t));
-thetaDot_I_sat = zeros(1,length(t));
-
-valor_maximo = zeros(1,length(t));
-
-%% SIMULACION CON SATURACION
-
-for k = 1:length(t)-1
-
-    ex = xd - x_sat(k);
-    ey = yd - y_sat(k);
-
-    rho_sat(k) = sqrt(ex^2 + ey^2);
-    theta_d = atan2(ey,ex);
-
-    e_theta_sat(k) = atan2(sin(theta_d-theta_sat(k)),...
-        cos(theta_d-theta_sat(k)));
-
-    u_sat(k) = k_rho*rho_sat(k);
-    w_sat(k) = k_theta*e_theta_sat(k);
-
-    if rho_sat(k) < tolerancia
-        u_sat(k) = 0;
-        w_sat(k) = 0;
-    end
-
-    thetaDot_D(k) = (u_sat(k)+(L/2)*w_sat(k))/r;
-    thetaDot_I(k) = (u_sat(k)-(L/2)*w_sat(k))/r;
-
-    valor_maximo(k) = max(abs([thetaDot_D(k) thetaDot_I(k)]));
-
-    if valor_maximo(k) > thetaDot_max
-        alpha = thetaDot_max/valor_maximo(k);
-        thetaDot_D_sat(k) = alpha*thetaDot_D(k);
-        thetaDot_I_sat(k) = alpha*thetaDot_I(k);
-    else
-        thetaDot_D_sat(k) = thetaDot_D(k);
-        thetaDot_I_sat(k) = thetaDot_I(k);
-    end
-
-    u_real(k) = (r/2)*(thetaDot_D_sat(k)+thetaDot_I_sat(k));
-    w_real(k) = (r/L)*(thetaDot_D_sat(k)-thetaDot_I_sat(k));
-
-    vD_sat(k) = r*thetaDot_D_sat(k);
-    vI_sat(k) = r*thetaDot_I_sat(k);
-
-    x_sat(k+1) = x_sat(k) + ti*u_real(k)*cos(theta_sat(k));
-    y_sat(k+1) = y_sat(k) + ti*u_real(k)*sin(theta_sat(k));
-    theta_sat(k+1) = theta_sat(k) + ti*w_real(k);
-
-end
-
-%% COMPLETAR EL ULTIMO VALOR
-
-rho_sat(end) = rho_sat(end-1);
-e_theta_sat(end) = e_theta_sat(end-1);
-u_sat(end) = u_sat(end-1);
-w_sat(end) = w_sat(end-1);
-u_real(end) = u_real(end-1);
-w_real(end) = w_real(end-1);
-vD_sat(end) = vD_sat(end-1);
-vI_sat(end) = vI_sat(end-1);
 thetaDot_D(end) = thetaDot_D(end-1);
 thetaDot_I(end) = thetaDot_I(end-1);
-thetaDot_D_sat(end) = thetaDot_D_sat(end-1);
-thetaDot_I_sat(end) = thetaDot_I_sat(end-1);
 
-%% NUEVA PALETA DE COLORES PERSONALIZADA
-naranjaFuego = [0.95 0.45 0.10];
-azulTurquesa = [0.00 0.65 0.75];
-grisOscuro   = [0.20 0.20 0.20];
+RPM_D(end) = RPM_D(end-1);
+RPM_I(end) = RPM_I(end-1);
 
-%% FIGURA 1
+%% PALETA DE COLORES
+colorPrincipal = [0.1, 0.7, 0.9];  % Azul vibrante personalizado
+colorSecundario = [0.9, 0.3, 0.6]; % Tono secundario distintivo
 
-figure(1)
+%% =========================================================
+% GENERACIÓN Y EXPORTACIÓN DE GRAFICAS ESTÁTICAS (FIGURAS 1 A 8)
+% =========================================================
 
-plot(x_ns,y_ns,'Color',azulTurquesa,'LineWidth',4)
-hold on
-
-% Inicio: Triángulo hacia arriba verde oscuro
-plot(x_ns(1),y_ns(1),'^',...
-    'MarkerSize',10,...
-    'MarkerFaceColor',[0 0.5 0],...
-    'MarkerEdgeColor','k')
-
-% Meta: Estrella de 5 picos dorada/amarilla
-plot(xd,yd,'p',...
-    'MarkerSize',14,...
-    'MarkerFaceColor',[1 0.8 0],...
-    'MarkerEdgeColor','k')
-
-% Final: Hexágono azul marino
-plot(x_ns(end),y_ns(end),'h',...
-    'MarkerSize',12,...
-    'MarkerFaceColor',[0 0 0.6],...
-    'MarkerEdgeColor','k')
-
-xlabel('Posición X [m]')
-ylabel('Posición Y [m]')
-title('Trayectoria sin saturación')
-legend('Trayectoria','Inicio','Meta','Final','Location','best')
+%% FIGURA 1. VELOCIDADES DESEADAS
+fig1 = figure(1);
+subplot(3,1,1)
+plot(t, x_punto, 'Color', colorPrincipal, 'LineWidth', 3)
 grid on
-axis equal
-set(gca,'FontSize',14)
-
-%% FIGURA 2
-
-figure(2)
-
-plot(x_sat,y_sat,'Color',naranjaFuego,'LineWidth',3)
-hold on
-plot(x_sat(1),y_sat(1),'^','MarkerFaceColor',[0 0.5 0],'MarkerEdgeColor','k','MarkerSize',10)
-plot(xd,yd,'p','MarkerFaceColor',[1 0.8 0],'MarkerEdgeColor','k','MarkerSize',14)
-plot(x_sat(end),y_sat(end),'h','MarkerFaceColor',[0 0 0.6],'MarkerEdgeColor','k','MarkerSize',12)
-
-xlabel('Posición X [m]')
-ylabel('Posición Y [m]')
-title('Trayectoria con saturación')
-legend('Trayectoria','Inicio','Meta','Final','Location','best')
-grid on
-axis equal
-set(gca,'FontSize',14)
-
-%% FIGURA 3
-
-figure(3)
-
-plot(x_ns,y_ns,'Color',azulTurquesa,'LineWidth',3)
-hold on
-plot(x_sat,y_sat,'Color',naranjaFuego,'LineWidth',3)
-plot(xd,yd,'p','MarkerSize',14,'MarkerFaceColor',[1 0.8 0],'MarkerEdgeColor','k')
-plot(x0,y0,'^','MarkerSize',10,'MarkerFaceColor',[0 0.5 0],'MarkerEdgeColor','k')
-
-xlabel('Posición X [m]')
-ylabel('Posición Y [m]')
-title('Comparación de trayectorias')
-legend('Sin saturación','Con saturación','Meta','Inicio','Location','best')
-grid on
-axis equal
-set(gca,'FontSize',14)
-
-%% FIGURA 4
-
-figure(4)
-
-plot(t,rho_ns,'Color',azulTurquesa,'LineWidth',3)
-hold on
-plot(t,rho_sat,'Color',naranjaFuego,'LineWidth',3)
-
+title('Velocidad deseada en X')
 xlabel('Tiempo [s]')
-ylabel('\rho [m]')
-title('Error de posición')
-legend('Sin saturación','Con saturación','Location','best')
+ylabel('\dot{x} [m/s]', 'Interpreter', 'latex')
+set(gca, 'FontSize', 12)
+
+subplot(3,1,2)
+plot(t, y_punto, 'Color', colorPrincipal, 'LineWidth', 3)
 grid on
-set(gca,'FontSize',14)
-
-%% FIGURA 5
-
-figure(5)
-
-plot(t,e_theta_ns,'Color',azulTurquesa,'LineWidth',3)
-hold on
-plot(t,e_theta_sat,'Color',naranjaFuego,'LineWidth',3)
-
+title('Velocidad deseada en Y')
 xlabel('Tiempo [s]')
-ylabel('e_{\theta} [rad]')
-title('Error angular')
-legend('Sin saturación','Con saturación','Location','best')
+ylabel('\dot{y} [m/s]', 'Interpreter', 'latex')
+set(gca, 'FontSize', 12)
+
+subplot(3,1,3)
+plot(t, theta_punto, 'Color', colorPrincipal, 'LineWidth', 3)
 grid on
-set(gca,'FontSize',14)
+title('Velocidad angular deseada')
+xlabel('Tiempo [s]')
+ylabel('\dot{\theta} [rad/s]', 'Interpreter', 'latex')
+set(gca, 'FontSize', 12)
 
-%% FIGURA 6
+exportgraphics(fig1, fullfile(nombre_carpeta, '01_velocidades_deseadas.png'), 'Resolution', 300);
 
-figure(6)
-
-plot(t,u_ns,'Color',azulTurquesa,'LineWidth',3)
-hold on
-plot(t,u_real,'Color',naranjaFuego,'LineWidth',3)
-
+%% FIGURA 2. VELOCIDAD DEL ROBOT
+fig2 = figure(2);
+subplot(2,1,1)
+plot(t, u, 'Color', colorPrincipal, 'LineWidth', 3)
+grid on
+title('Velocidad lineal del robot')
 xlabel('Tiempo [s]')
 ylabel('u [m/s]')
-title('Velocidad lineal')
-legend('Sin saturación','Con saturación','Location','best')
-grid on
-set(gca,'FontSize',14)
-
-%% FIGURA 7
-
-figure(7)
-
-plot(t,w_ns,'Color',azulTurquesa,'LineWidth',3)
-hold on
-plot(t,w_real,'Color',naranjaFuego,'LineWidth',3)
-
-xlabel('Tiempo [s]')
-ylabel('w [rad/s]')
-title('Velocidad angular')
-legend('Sin saturación','Con saturación','Location','best')
-grid on
-set(gca,'FontSize',14)
-
-%% FIGURA 8
-
-figure(8)
-
-subplot(2,1,1)
-plot(t,thetaDot_D_ns,'Color',azulTurquesa,'LineWidth',3)
-hold on
-plot(t,thetaDot_D_sat,'Color',naranjaFuego,'LineWidth',3)
-ylabel('\omega_D [rad/s]')
-title('Rueda derecha')
-legend('Sin saturación','Con saturación')
-grid on
+set(gca, 'FontSize', 12)
 
 subplot(2,1,2)
-plot(t,thetaDot_I_ns,'Color',azulTurquesa,'LineWidth',3)
-hold on
-plot(t,thetaDot_I_sat,'Color',naranjaFuego,'LineWidth',3)
-ylabel('\omega_I [rad/s]')
-xlabel('Tiempo [s]')
-title('Rueda izquierda')
-legend('Sin saturación','Con saturación')
+plot(t, w, 'Color', colorPrincipal, 'LineWidth', 3)
 grid on
+title('Velocidad angular del robot')
+xlabel('Tiempo [s]')
+ylabel('\omega [rad/s]', 'Interpreter', 'latex')
+set(gca, 'FontSize', 12)
 
-set(gca,'FontSize',14)
+exportgraphics(fig2, fullfile(nombre_carpeta, '02_velocidad_robot.png'), 'Resolution', 300);
 
-%% FIGURA 9 (ANIMACIÓN PERSONALIZADA)
+%% FIGURA 3. TRAYECTORIA DESEADA
+fig3 = figure(3);
+plot(xd, yd, 'Color', colorPrincipal, 'LineWidth', 3)
+hold on
+plot(xd(1), yd(1), 's', 'MarkerSize', 10, 'MarkerFaceColor', [1 0.5 0], 'MarkerEdgeColor', 'w', 'LineWidth', 1.5)
+plot(xd(end), yd(end), 'p', 'MarkerSize', 12, 'MarkerFaceColor', [0 1 0], 'MarkerEdgeColor', 'w', 'LineWidth', 1.5)
+grid on
+axis equal
+title('Trayectoria deseada')
+xlabel('X [m]')
+ylabel('Y [m]')
+legend('Trayectoria', 'Inicio (Naranja)', 'Final (Verde)', 'Location', 'best')
+set(gca, 'FontSize', 12)
 
-figure(9)
-filename = 'control_cinematico_personalizado.gif';
+exportgraphics(fig3, fullfile(nombre_carpeta, '03_trayectoria_deseada.png'), 'Resolution', 300);
 
+%% FIGURA 4. TRAYECTORIA OBTENIDA
+fig4 = figure(4);
+plot(x, y, 'Color', colorPrincipal, 'LineWidth', 3)
+hold on
+plot(x(1), y(1), 's', 'MarkerSize', 10, 'MarkerFaceColor', [1 0.5 0], 'MarkerEdgeColor', 'w', 'LineWidth', 1.5)
+plot(x(end), y(end), 'p', 'MarkerSize', 12, 'MarkerFaceColor', [0 1 0], 'MarkerEdgeColor', 'w', 'LineWidth', 1.5)
+grid on
+axis equal
+title('Trayectoria obtenida')
+xlabel('X [m]')
+ylabel('Y [m]')
+legend('Trayectoria', 'Inicio (Naranja)', 'Final (Verde)', 'Location', 'best')
+set(gca, 'FontSize', 12)
+
+exportgraphics(fig4, fullfile(nombre_carpeta, '04_trayectoria_obtenida.png'), 'Resolution', 300);
+
+%% FIGURA 5. COMPARACIÓN DE TRAYECTORIAS
+fig5 = figure(5);
+plot(xd, yd, 'Color', colorPrincipal, 'LineWidth', 3)
+hold on
+plot(x, y, '--k', 'LineWidth', 2)
+grid on
+axis equal
+title('Comparacion de trayectorias')
+xlabel('X [m]')
+ylabel('Y [m]')
+legend('Trayectoria deseada', 'Trayectoria obtenida', 'Location', 'best')
+set(gca, 'FontSize', 12)
+
+exportgraphics(fig5, fullfile(nombre_carpeta, '05_comparacion_trayectorias.png'), 'Resolution', 300);
+
+%% FIGURA 6. VELOCIDAD LINEAL
+fig6 = figure(6);
+plot(t, u, 'Color', colorPrincipal, 'LineWidth', 3)
+grid on
+title('Velocidad lineal')
+xlabel('Tiempo [s]')
+ylabel('u [m/s]')
+set(gca, 'FontSize', 12)
+
+exportgraphics(fig6, fullfile(nombre_carpeta, '06_velocidad_lineal.png'), 'Resolution', 300);
+
+%% FIGURA 7. VELOCIDAD ANGULAR
+fig7 = figure(7);
+plot(t, w, 'Color', colorPrincipal, 'LineWidth', 3)
+grid on
+title('Velocidad angular')
+xlabel('Tiempo [s]')
+ylabel('\omega [rad/s]', 'Interpreter', 'tex')
+set(gca, 'FontSize', 12)
+
+exportgraphics(fig7, fullfile(nombre_carpeta, '07_velocidad_angular.png'), 'Resolution', 300);
+
+%% FIGURA 8. VELOCIDADES DE LAS RUEDAS
+fig8 = figure(8);
+subplot(2,1,1)
+plot(t, VD, 'Color', colorPrincipal, 'LineWidth', 3)
+hold on
+plot(t, VI, '--', 'Color', colorSecundario, 'LineWidth', 3)
+grid on
+title('Velocidades lineales de las ruedas')
+xlabel('Tiempo [s]')
+ylabel('Velocidad [m/s]')
+legend('Rueda derecha', 'Rueda izquierda', 'Location', 'best')
+set(gca, 'FontSize', 12)
+
+subplot(2,1,2)
+plot(t, thetaDot_D, 'Color', colorPrincipal, 'LineWidth', 3)
+hold on
+plot(t, thetaDot_I, '--', 'Color', colorSecundario, 'LineWidth', 3)
+grid on
+title('Velocidades angulares de las ruedas')
+xlabel('Tiempo [s]')
+ylabel('\omega [rad/s]')
+legend('Rueda derecha', 'Rueda izquierda', 'Location', 'best')
+set(gca, 'FontSize', 12)
+
+exportgraphics(fig8, fullfile(nombre_carpeta, '08_velocidades_ruedas.png'), 'Resolution', 300);
+
+%% =========================================================
+% FIGURA 9. ANIMACIÓN Y EXPORTACIÓN A VÍDEO (.MP4) Y GIF
+% =========================================================
+fprintf('Generando animacion, vídeo e imágenes...\n');
+
+fig9 = figure(9);
+clf
+set(fig9, 'Position', [150 80 900 700], 'Color', 'k')
+
+xmin = min([x xd]) - 0.5;
+xmax = max([x xd]) + 0.5;
+ymin = min([y yd]) - 0.5;
+ymax = max([y yd]) + 0.5;
+
+% Configuración de archivo GIF
+nombre_gif = fullfile(nombre_carpeta, 'animacion_robot.gif');
+
+% Configuración del Vídeo MP4
+nombre_mp4 = fullfile(nombre_carpeta, 'animacion_robot.mp4');
+video = VideoWriter(nombre_mp4, 'MPEG-4');
+video.FrameRate = 30;
+open(video);
+
+k_contador = 1;
 for k = 1:5:length(t)
 
     clf
-
-    % Trayectoria total de fondo en tono gris oscuro
-    plot(x_sat,y_sat,'Color',grisOscuro,'LineWidth',2)
+    set(gca, 'Color', 'k', 'XColor', 'w', 'YColor', 'w');
     hold on
 
-    % Inicio (Triángulo verde)
-    plot(x_sat(1),y_sat(1),'^',...
-        'MarkerFaceColor',[0 0.5 0],...
-        'MarkerEdgeColor','k',...
-        'MarkerSize',10)
+    % Trayectoria completa de referencia (gris tenue)
+    plot(xd, yd, '--', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.5);
 
-    % Meta (Estrella dorada)
-    plot(xd,yd,'p',...
-        'MarkerFaceColor',[1 0.8 0],...
-        'MarkerEdgeColor','k',...
-        'MarkerSize',14)
+    % Trayectoria recorrida
+    plot(xd(1:k), yd(1:k), 'Color', colorPrincipal, 'LineWidth', 3);
 
-    % Trayectoria recorrida (Naranja fuego)
-    plot(x_sat(1:k),y_sat(1:k),...
-        'Color',naranjaFuego,...
-        'LineWidth',4)
+    % Robot: Círculo azul vibrante con borde blanco
+    plot(xd(k), yd(k), 'o', 'MarkerFaceColor', [0 0.4 1], 'MarkerEdgeColor', 'w', 'MarkerSize', 12, 'LineWidth', 1.5);
 
-    % Robot actual (Cuadrado cian con borde oscuro)
-    plot(x_sat(k),y_sat(k),'s',...
-        'MarkerFaceColor',azulTurquesa,...
-        'MarkerEdgeColor','k',...
-        'MarkerSize',10)
+    % Flecha de orientación: Raya roja gruesa
+    quiver(xd(k), yd(k), 0.25*cos(theta(k)), 0.25*sin(theta(k)), 0, 'Color', [1 0 0], 'LineWidth', 3, 'MaxHeadSize', 2);
 
-    xlabel('Posición X [m]')
-    ylabel('Posición Y [m]')
-    title('Animación de control cinemático')
+    % Punto de inicio: Cuadrado naranja fijo
+    plot(xd(1), yd(1), 's', 'MarkerFaceColor', [1 0.5 0], 'MarkerEdgeColor', 'w', 'MarkerSize', 8, 'LineWidth', 1.5);
+
+    % Punto final destino: Estrella verde brillante fija
+    plot(xd(end), yd(end), 'p', 'MarkerFaceColor', [0 1 0], 'MarkerEdgeColor', 'w', 'MarkerSize', 12, 'LineWidth', 1.5);
 
     axis equal
+    axis([xmin xmax ymin ymax])
     grid on
+    box on
 
-    xlim([-0.5 5.5])
-    ylim([-0.5 4.5])
+    xlabel('X [m]', 'Color', 'w')
+    ylabel('Y [m]', 'Color', 'w')
+    title(sprintf('Animacion de la trayectoria - t = %.2f s / %.2f s', t(k), ts), 'Color', 'w', 'FontSize', 12)
 
     drawnow
 
-    frame = getframe(gcf);
+    % Captura de cuadro para Vídeo MP4
+    frame = getframe(fig9);
+    writeVideo(video, frame);
+
+    % Captura de cuadro para GIF Animado
     im = frame2im(frame);
-    [A,map] = rgb2ind(im,256);
+    [A, map] = rgb2ind(im, 256);
 
-    if k == 1
-        imwrite(A,map,filename,'gif','LoopCount',Inf,'DelayTime',0.05);
+    if k_contador == 1
+        imwrite(A, map, nombre_gif, 'gif', 'LoopCount', Inf, 'DelayTime', 0.05);
     else
-        imwrite(A,map,filename,'gif','WriteMode','append','DelayTime',0.05);
+        imwrite(A, map, nombre_gif, 'gif', 'WriteMode', 'append', 'DelayTime', 0.05);
     end
-
+    k_contador = k_contador + 1;
 end
+
+% Congelar el cuadro final 1 segundo en el vídeo
+for i = 1:30
+    frame = getframe(fig9);
+    writeVideo(video, frame);
+end
+
+% Guardar la captura final PNG de la animación
+exportgraphics(fig9, fullfile(nombre_carpeta, '09_animacion_cuadro_final.png'), 'Resolution', 300);
+
+close(video);
+
+fprintf('\n¡Proceso finalizado con éxito!\n');
+fprintf('Todos los archivos fueron guardados en la carpeta: "%s"\n', nombre_carpeta);
