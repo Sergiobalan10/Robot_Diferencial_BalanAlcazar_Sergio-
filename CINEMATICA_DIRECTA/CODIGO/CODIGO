@@ -1,5 +1,5 @@
 %% =========================================================
-% CINEMATICA DIRECTA DE UN ROBOT DIFERENCIAL CON ANIMACION Y EXPORTACION
+% CINEMATICA DIRECTA DE UN ROBOT DIFERENCIAL
 %
 % Se analizan y animan 8 combinaciones de velocidades, 
 % guardando las 8 imágenes estáticas y un GIF animado.
