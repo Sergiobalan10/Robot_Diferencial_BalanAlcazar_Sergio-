@@ -4,7 +4,7 @@ clc;
 close all;
 
 %------------------------------------------------------------
-% CONTROL CINEMATICO DE UN ROBOT DIFERENCIAL - VERSIÓN PERSONALIZADA
+% CONTROL CINEMATICO DE UN ROBOT DIFERENCIAL
 % REGULACIÓN DE PUNTO (CON Y SIN SATURACIÓN)
 %------------------------------------------------------------
 
@@ -14,12 +14,12 @@ ts = 25;                 % Tiempo total modificado a 25 s
 ti = 0.01;               % Tiempo de integración [s]
 t = 0:ti:ts;
 
-%% PARAMETROS DEL ROBOT (Nuevos valores personalizados)
+%% PARAMETROS DEL ROBOT
 
 L = 0.25;                % Distancia entre ruedas [m]
 r = 0.04;                % Radio de las ruedas [m]
 
-%% POSICION DESEADA (Meta modificada)
+%% POSICION DESEADA
 
 xd = 4.5;
 yd = 3.5;
@@ -32,7 +32,7 @@ k_theta = 4.5;
 thetaDot_max = 18;       % Velocidad angular máxima [rad/s]
 tolerancia = 0.03;       % Distancia mínima a la meta
 
-%% CONDICIONES INICIALES (Punto de inicio modificado)
+%% CONDICIONES INICIALES
 
 x0 = 0.5;
 y0 = 1.0;
