@@ -1,4 +1,4 @@
-%% CINEMÁTICA INVERSA DE UN ROBOT DIFERENCIAL (VERSIÓN PERSONALIZADA CON EXPORTACIÓN)
+%% CINEMÁTICA INVERSA DE UN ROBOT DIFERENCIAL
 clear all;
 close all;
 clc;
@@ -14,7 +14,7 @@ x(1) = 0;
 y(1) = 0;
 theta(1) = pi/2;
 
-%% TIEMPO (ts ajustado a 21, ti y t con la misma estructura)
+%% TIEMPO 
 ts = 21;
 ti = 0.01;
 t = 0:ti:ts;
